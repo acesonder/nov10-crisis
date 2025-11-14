@@ -19,6 +19,10 @@ document.addEventListener('DOMContentLoaded', function() {
     initModals();
     initForms();
     initTooltips();
+    initKeyboardShortcuts();
+    initGlobalSearch();
+    initBulkActions();
+    initFavorites();
     
     // Start real-time updates if user is logged in
     if (document.querySelector('[data-user-id]')) {
@@ -473,11 +477,340 @@ function timeAgo(dateString) {
     return 'just now';
 }
 
+// Keyboard Shortcuts System
+function initKeyboardShortcuts() {
+    const shortcuts = {
+        'Alt+D': () => window.location.href = getDashboardUrl(),
+        'Alt+M': () => window.location.href = '/nov10-crisis/pages/common/messages.php',
+        'Alt+N': () => window.location.href = '/nov10-crisis/pages/common/notifications.php',
+        'Alt+P': () => window.location.href = '/nov10-crisis/pages/common/profile.php',
+        'Alt+S': () => document.getElementById('global-search-input')?.focus(),
+        'Alt+H': () => showShortcutHelp(),
+        'Escape': () => closeAllModals(),
+        'Ctrl+K': (e) => { e.preventDefault(); toggleGlobalSearch(); }
+    };
+
+    document.addEventListener('keydown', function(e) {
+        const key = [];
+        if (e.ctrlKey) key.push('Ctrl');
+        if (e.altKey) key.push('Alt');
+        if (e.shiftKey) key.push('Shift');
+        key.push(e.key);
+        
+        const combo = key.join('+');
+        
+        if (shortcuts[combo]) {
+            if (combo !== 'Escape') e.preventDefault();
+            shortcuts[combo](e);
+        }
+    });
+    
+    // Add keyboard shortcut indicator
+    addShortcutIndicator();
+}
+
+function getDashboardUrl() {
+    const role = document.body.dataset.userRole || 'client';
+    return `/nov10-crisis/pages/${role}/dashboard.php`;
+}
+
+function showShortcutHelp() {
+    const helpHTML = `
+        <div class="shortcuts-help">
+            <h3>Keyboard Shortcuts</h3>
+            <div class="shortcut-list">
+                <div><kbd>Alt+D</kbd> <span>Dashboard</span></div>
+                <div><kbd>Alt+M</kbd> <span>Messages</span></div>
+                <div><kbd>Alt+N</kbd> <span>Notifications</span></div>
+                <div><kbd>Alt+P</kbd> <span>Profile</span></div>
+                <div><kbd>Alt+S</kbd> <span>Focus Search</span></div>
+                <div><kbd>Ctrl+K</kbd> <span>Toggle Search</span></div>
+                <div><kbd>Alt+H</kbd> <span>Show this help</span></div>
+                <div><kbd>Esc</kbd> <span>Close modals</span></div>
+            </div>
+        </div>
+    `;
+    showToast(helpHTML, 'info', 8000);
+}
+
+function addShortcutIndicator() {
+    const indicator = document.createElement('div');
+    indicator.className = 'shortcut-indicator';
+    indicator.innerHTML = '<span>Press <kbd>Alt+H</kbd> for shortcuts</span>';
+    indicator.onclick = showShortcutHelp;
+    document.body.appendChild(indicator);
+}
+
+// Global Search System
+function initGlobalSearch() {
+    const searchBar = createGlobalSearchBar();
+    document.body.appendChild(searchBar);
+}
+
+function createGlobalSearchBar() {
+    const searchContainer = document.createElement('div');
+    searchContainer.id = 'global-search-container';
+    searchContainer.className = 'global-search-container hidden';
+    searchContainer.innerHTML = `
+        <div class="global-search-overlay" onclick="toggleGlobalSearch()"></div>
+        <div class="global-search-box">
+            <input type="text" id="global-search-input" placeholder="Search everywhere... (Ctrl+K)" autocomplete="off">
+            <div id="global-search-results"></div>
+        </div>
+    `;
+    
+    setTimeout(() => {
+        const input = searchContainer.querySelector('#global-search-input');
+        if (input) {
+            input.addEventListener('input', debounce(performGlobalSearch, 300));
+            input.addEventListener('keydown', handleSearchNavigation);
+        }
+    }, 100);
+    
+    return searchContainer;
+}
+
+function toggleGlobalSearch() {
+    const container = document.getElementById('global-search-container');
+    if (container) {
+        container.classList.toggle('hidden');
+        if (!container.classList.contains('hidden')) {
+            document.getElementById('global-search-input')?.focus();
+        }
+    }
+}
+
+function performGlobalSearch() {
+    const query = document.getElementById('global-search-input')?.value;
+    const resultsDiv = document.getElementById('global-search-results');
+    
+    if (!query || query.length < 2) {
+        if (resultsDiv) resultsDiv.innerHTML = '';
+        return;
+    }
+    
+    if (resultsDiv) {
+        resultsDiv.innerHTML = '<div class="search-loading">Searching...</div>';
+    }
+    
+    fetch(`/nov10-crisis/includes/ajax/global_search.php?q=${encodeURIComponent(query)}`)
+        .then(response => response.json())
+        .then(data => {
+            displaySearchResults(data);
+        })
+        .catch(error => {
+            console.error('Search error:', error);
+            if (resultsDiv) {
+                resultsDiv.innerHTML = '<div class="search-error">Search failed. Please try again.</div>';
+            }
+        });
+}
+
+function displaySearchResults(results) {
+    const resultsDiv = document.getElementById('global-search-results');
+    if (!resultsDiv) return;
+    
+    if (!results || results.length === 0) {
+        resultsDiv.innerHTML = '<div class="search-no-results">No results found</div>';
+        return;
+    }
+    
+    let html = '<div class="search-results-list">';
+    results.forEach((result, index) => {
+        html += `
+            <div class="search-result-item" data-index="${index}" onclick="window.location.href='${result.url}'">
+                <div class="result-icon">${result.icon || '📄'}</div>
+                <div class="result-content">
+                    <div class="result-title">${result.title}</div>
+                    <div class="result-type">${result.type}</div>
+                    ${result.description ? `<div class="result-description">${result.description}</div>` : ''}
+                </div>
+            </div>
+        `;
+    });
+    html += '</div>';
+    resultsDiv.innerHTML = html;
+}
+
+function handleSearchNavigation(e) {
+    const results = document.querySelectorAll('.search-result-item');
+    if (results.length === 0) return;
+    
+    let currentIndex = -1;
+    results.forEach((item, index) => {
+        if (item.classList.contains('active')) {
+            currentIndex = index;
+        }
+    });
+    
+    if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        currentIndex = (currentIndex + 1) % results.length;
+    } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        currentIndex = currentIndex <= 0 ? results.length - 1 : currentIndex - 1;
+    } else if (e.key === 'Enter' && currentIndex >= 0) {
+        e.preventDefault();
+        results[currentIndex].click();
+        return;
+    } else {
+        return;
+    }
+    
+    results.forEach(item => item.classList.remove('active'));
+    results[currentIndex]?.classList.add('active');
+}
+
+// Bulk Actions System
+function initBulkActions() {
+    document.addEventListener('click', function(e) {
+        if (e.target.classList.contains('bulk-select-all')) {
+            toggleSelectAll(e.target);
+        } else if (e.target.classList.contains('bulk-action-btn')) {
+            executeBulkAction(e.target);
+        }
+    });
+}
+
+function toggleSelectAll(checkbox) {
+    const container = checkbox.closest('table') || checkbox.closest('.list-container');
+    const checkboxes = container?.querySelectorAll('.bulk-item-checkbox');
+    checkboxes?.forEach(cb => cb.checked = checkbox.checked);
+    updateBulkActionBar();
+}
+
+function updateBulkActionBar() {
+    const checked = document.querySelectorAll('.bulk-item-checkbox:checked').length;
+    const bar = document.querySelector('.bulk-action-bar');
+    
+    if (checked > 0) {
+        if (!bar) {
+            createBulkActionBar(checked);
+        } else {
+            bar.querySelector('.bulk-count').textContent = `${checked} selected`;
+            bar.style.display = 'flex';
+        }
+    } else {
+        bar?.style.display = 'none';
+    }
+}
+
+function createBulkActionBar(count) {
+    const bar = document.createElement('div');
+    bar.className = 'bulk-action-bar';
+    bar.innerHTML = `
+        <div class="bulk-info">
+            <span class="bulk-count">${count} selected</span>
+        </div>
+        <div class="bulk-actions">
+            <button class="btn btn-sm btn-primary bulk-action-btn" data-action="export">Export</button>
+            <button class="btn btn-sm btn-danger bulk-action-btn" data-action="delete">Delete</button>
+            <button class="btn btn-sm btn-light" onclick="clearBulkSelection()">Clear</button>
+        </div>
+    `;
+    document.querySelector('.main-content')?.prepend(bar);
+}
+
+function executeBulkAction(btn) {
+    const action = btn.dataset.action;
+    const selected = Array.from(document.querySelectorAll('.bulk-item-checkbox:checked'))
+        .map(cb => cb.value);
+    
+    if (selected.length === 0) return;
+    
+    if (action === 'export') {
+        exportSelectedItems(selected);
+    } else if (action === 'delete') {
+        if (confirm(`Delete ${selected.length} items?`)) {
+            deleteSelectedItems(selected);
+        }
+    }
+}
+
+function exportSelectedItems(ids) {
+    const url = `/nov10-crisis/includes/ajax/export_items.php?ids=${ids.join(',')}`;
+    window.open(url, '_blank');
+}
+
+function clearBulkSelection() {
+    document.querySelectorAll('.bulk-item-checkbox').forEach(cb => cb.checked = false);
+    document.querySelector('.bulk-select-all')?.checked = false;
+    updateBulkActionBar();
+}
+
+// Favorites/Bookmarks System
+function initFavorites() {
+    loadFavorites();
+    document.addEventListener('click', function(e) {
+        if (e.target.classList.contains('favorite-toggle') || e.target.closest('.favorite-toggle')) {
+            toggleFavorite(e.target.closest('.favorite-toggle'));
+        }
+    });
+}
+
+function loadFavorites() {
+    const favorites = JSON.parse(localStorage.getItem('favorites') || '[]');
+    App.favorites = favorites;
+    updateFavoriteButtons();
+}
+
+function toggleFavorite(btn) {
+    const url = btn.dataset.url || window.location.pathname;
+    const title = btn.dataset.title || document.title;
+    const favorites = JSON.parse(localStorage.getItem('favorites') || '[]');
+    
+    const index = favorites.findIndex(f => f.url === url);
+    
+    if (index >= 0) {
+        favorites.splice(index, 1);
+        btn.classList.remove('active');
+        showToast('Removed from favorites', 'success');
+    } else {
+        favorites.push({ url, title, timestamp: Date.now() });
+        btn.classList.add('active');
+        showToast('Added to favorites', 'success');
+    }
+    
+    localStorage.setItem('favorites', JSON.stringify(favorites));
+    App.favorites = favorites;
+}
+
+function updateFavoriteButtons() {
+    const favorites = JSON.parse(localStorage.getItem('favorites') || '[]');
+    const currentUrl = window.location.pathname;
+    
+    document.querySelectorAll('.favorite-toggle').forEach(btn => {
+        const url = btn.dataset.url || currentUrl;
+        if (favorites.some(f => f.url === url)) {
+            btn.classList.add('active');
+        }
+    });
+}
+
+// Utility Functions
+function debounce(func, wait) {
+    let timeout;
+    return function(...args) {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func.apply(this, args), wait);
+    };
+}
+
+function closeAllModals() {
+    document.querySelectorAll('.modal').forEach(modal => {
+        modal.style.display = 'none';
+    });
+    toggleGlobalSearch(); // Close search if open
+}
+
 // Export functions for use in other scripts
 window.App = App;
 window.toggleTheme = toggleTheme;
 window.openModal = openModal;
 window.closeModal = closeModal;
+window.toggleGlobalSearch = toggleGlobalSearch;
+window.clearBulkSelection = clearBulkSelection;
+window.updateBulkActionBar = updateBulkActionBar;
 window.showToast = showToast;
 window.formatDate = formatDate;
 window.formatTime = formatTime;

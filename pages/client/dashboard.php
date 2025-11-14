@@ -8,6 +8,12 @@ require_role('client');
 $page_title = 'Client Dashboard';
 $user_id = $_SESSION['user_id'];
 
+// Breadcrumb
+$breadcrumb_items = [
+    ['label' => 'Home', 'url' => '/nov10-crisis/'],
+    ['label' => 'Dashboard', 'url' => '']
+];
+
 // Get user stats
 $stmt = $conn->prepare("SELECT COUNT(*) as count FROM assessments WHERE client_id = ?");
 $stmt->bind_param("i", $user_id);

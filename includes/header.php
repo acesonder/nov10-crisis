@@ -35,7 +35,7 @@ $theme = $preferences['theme'] ?? 'light';
         <?php endforeach; ?>
     <?php endif; ?>
 </head>
-<body data-user-id="<?php echo $user_id; ?>">
+<body data-user-id="<?php echo $user_id; ?>" data-user-role="<?php echo $role; ?>">
     <nav class="navbar">
         <div class="container-fluid">
             <a href="/nov10-crisis/pages/<?php echo $role; ?>/dashboard.php" class="navbar-brand">
@@ -74,3 +74,16 @@ $theme = $preferences['theme'] ?? 'light';
     </nav>
     
     <div class="main-content">
+        <?php 
+        // Display breadcrumb if set
+        if (isset($breadcrumb_items) && !empty($breadcrumb_items)) {
+            echo render_breadcrumb($breadcrumb_items);
+        }
+        
+        // Add favorite button for current page
+        $current_url = $_SERVER['REQUEST_URI'];
+        ?>
+        <div class="page-actions" style="text-align: right; margin-bottom: 10px;">
+            <button class="favorite-toggle" data-url="<?php echo htmlspecialchars($current_url); ?>" data-title="<?php echo htmlspecialchars($page_title ?? ''); ?>" title="Add to favorites">
+            </button>
+        </div>
