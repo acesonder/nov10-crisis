@@ -1375,3 +1375,45 @@ textarea.form-control {
         font-size: 12px;
     }
 }
+
+/* ============================================
+   COLOR SCHEME VARIATIONS
+   ============================================ */
+
+[data-color-scheme="purple"] {
+    --primary-color: #7b68ee;
+    --secondary-color: #9575cd;
+}
+
+[data-color-scheme="green"] {
+    --primary-color: #28a745;
+    --secondary-color: #20c997;
+}
+
+[data-color-scheme="red"] {
+    --primary-color: #dc3545;
+    --secondary-color: #e83e8c;
+}
+
+[data-color-scheme="orange"] {
+    --primary-color: #ff9800;
+    --secondary-color: #ff5722;
+}
+
+[data-color-scheme="teal"] {
+    --primary-color: #17a2b8;
+    --secondary-color: #00bcd4;
+}
+
+/* Dashboard Layout Variations */
+[data-dashboard-layout="sidebar"] .dashboard-grid {
+    grid-template-columns: 300px 1fr;
+}
+
+[data-dashboard-layout="single"] .dashboard-grid {
+    grid-template-columns: 1fr;
+}
+
+[data-dashboard-layout="default"] .dashboard-grid {
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+}
