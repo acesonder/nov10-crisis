@@ -295,4 +295,74 @@ function get_priority_badge($priority) {
     
     return "<span class='badge badge-{$color}'>{$label}</span>";
 }
+
+// Breadcrumb helper function
+function render_breadcrumb($items) {
+    if (empty($items)) return '';
+    
+    $html = '<nav class="breadcrumb" aria-label="breadcrumb"><div class="breadcrumb-items">';
+    
+    foreach ($items as $item) {
+        $html .= '<div class="breadcrumb-item">';
+        if (isset($item['url']) && !empty($item['url'])) {
+            $html .= '<a href="' . htmlspecialchars($item['url']) . '">' . htmlspecialchars($item['label']) . '</a>';
+        } else {
+            $html .= htmlspecialchars($item['label']);
+        }
+        $html .= '</div>';
+    }
+    
+    $html .= '</div></nav>';
+    return $html;
+}
+
+// Favorite page management
+function is_page_favorited($user_id, $url) {
+    $favorites = get_user_favorites($user_id);
+    return in_array($url, array_column($favorites, 'url'));
+}
+
+function get_user_favorites($user_id) {
+    // Store favorites in session or database
+    init_session();
+    if (!isset($_SESSION['favorites_' . $user_id])) {
+        $_SESSION['favorites_' . $user_id] = [];
+    }
+    return $_SESSION['favorites_' . $user_id];
+}
+
+// Export table to CSV helper
+function export_to_csv($data, $filename) {
+    header('Content-Type: text/csv');
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
+    
+    $output = fopen('php://output', 'w');
+    
+    if (!empty($data)) {
+        fputcsv($output, array_keys($data[0]));
+        foreach ($data as $row) {
+            fputcsv($output, $row);
+        }
+    }
+    
+    fclose($output);
+    exit;
+}
+
+// Auto-complete suggestions helper
+function get_autocomplete_suggestions($conn, $table, $field, $query, $limit = 10) {
+    $search_term = '%' . $query . '%';
+    $stmt = $conn->prepare("SELECT DISTINCT {$field} FROM {$table} WHERE {$field} LIKE ? LIMIT ?");
+    $stmt->bind_param("si", $search_term, $limit);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    
+    $suggestions = [];
+    while ($row = $result->fetch_assoc()) {
+        $suggestions[] = $row[$field];
+    }
+    $stmt->close();
+    
+    return $suggestions;
+}
 ?>
